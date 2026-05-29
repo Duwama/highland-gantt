@@ -1,0 +1,6 @@
+# Static site at the project root + serverless function in netlify/functions.
+[build]
+  publish = "."
+
+[functions]
+  node_bundler = "esbuild"
