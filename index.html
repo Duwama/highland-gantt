@@ -182,7 +182,30 @@
   .foot-meta{font-family:"Inter",system-ui,sans-serif;font-size:11px;letter-spacing:0.06em;color:var(--ink-soft-c);text-align:right;line-height:1.8;}
   .coords{color:var(--blue-2);}
 
-  @media(max-width:640px){:root{--label-w:150px;}.stats{grid-template-columns:repeat(2,1fr);}main{padding:0 18px 60px;}header.bar{padding:0 16px;}.crumb{display:none;}.m-grid{grid-template-columns:1fr;}}
+  @media(max-width:760px){
+    .chart-wrap{max-height:none;-webkit-overflow-scrolling:touch;}
+  }
+  @media(max-width:640px){
+    :root{--label-w:130px;}
+    .stats{grid-template-columns:repeat(2,1fr);}
+    .stat{padding:14px 16px;}
+    .stat .n{font-size:30px;}
+    main{padding:0 14px 56px;}
+    header.bar{padding:0 14px;height:54px;}
+    .progress-stamp{display:none;}
+    .crumb{display:none;}
+    h1.title{font-size:26px;}
+    .controls{gap:8px;}
+    .ctl-right{margin-left:0;width:100%;flex-wrap:wrap;}
+    .chip,.btn-tool,.btn-add{padding:9px 12px;font-size:11.5px;}
+    .row .name{font-size:12px;padding:7px 10px;gap:6px;}
+    .bar .handle{width:14px;opacity:1;}
+    .hint{font-size:11.5px;}
+    .modal{padding:22px 18px 18px;}
+    .f-name{font-size:22px;}
+    .modal select,.modal input[type=date],.modal input[type=number]{font-size:16px;}
+    .m-grid{grid-template-columns:1fr;gap:14px;}
+  }
 </style>
 </head>
 <body>
@@ -227,7 +250,7 @@
       <input type="file" id="import-file" accept="application/json,.json" hidden />
     </div>
   </div>
-  <p class="hint">Click a bar to <b>edit everything</b> · drag it to reschedule · drag its <b>right edge</b> to resize · click the <b>◆</b> glyph to quick-cycle status. Changes <b>autosave</b> in your browser.</p>
+  <p class="hint">Tap a bar to <b>edit everything</b> · drag it to reschedule · drag its <b>right edge</b> to resize · tap the <b>◆</b> glyph to cycle status · scroll the chart sideways for the full timeline. Changes <b>autosave</b> in your browser.</p>
 
   <div class="legend">
     <span class="lg"><span class="gl done">◆</span> Complete</span>
@@ -405,8 +428,10 @@ function renderLanes(){
       glyph.addEventListener("click",e=>{e.stopPropagation();task.status=CYCLE[task.status];renderLanes();recompute();persist();});
       bar.addEventListener("mousemove",e=>{if(drag)return;showTip(task,e);});
       bar.addEventListener("mouseleave",()=>{if(!drag)tip.style.opacity="0";});
-      bar.addEventListener("mousedown",e=>startDrag(e,task,"move"));
-      bar.querySelector(".handle").addEventListener("mousedown",e=>{e.stopPropagation();startDrag(e,task,"resize");});
+      bar.addEventListener("mousedown",e=>{e.preventDefault();beginDrag(e.clientX,task,"move");});
+      bar.querySelector(".handle").addEventListener("mousedown",e=>{e.stopPropagation();e.preventDefault();beginDrag(e.clientX,task,"resize");});
+      bar.addEventListener("touchstart",e=>{const t=e.touches[0];touchPending={task,type:"move",x:t.clientX,y:t.clientY};},{passive:true});
+      bar.querySelector(".handle").addEventListener("touchstart",e=>{e.stopPropagation();const t=e.touches[0];touchPending={task,type:"resize",x:t.clientX,y:t.clientY,force:true};},{passive:true});
       order++;
     });
     lanes.appendChild(block);
@@ -439,30 +464,44 @@ function showTip(task,e){
   tip.style.left=x+"px";tip.style.top=y+"px";
 }
 
-// ---- drag + click-to-edit ----
-let drag=null;
-function startDrag(e,task,type){
-  e.preventDefault();
+// ---- drag + click/tap-to-edit (mouse + touch) ----
+let drag=null, touchPending=null;
+function beginDrag(clientX,task,type){
   const trackW=task._bar.parentElement.getBoundingClientRect().width;
-  drag={task,type,startX:e.clientX,origStart:task.start,origDur:task.dur,pxPerDay:trackW/TOTAL,moved:false};
+  drag={task,type,startX:clientX,origStart:task.start,origDur:task.dur,pxPerDay:trackW/TOTAL,moved:false};
   task._bar.classList.add("dragging");task._bar.classList.remove("appear");
   document.body.style.userSelect="none";
 }
-window.addEventListener("mousemove",e=>{
+function moveDrag(clientX){
   if(!drag)return;
-  const dDays=Math.round((e.clientX-drag.startX)/drag.pxPerDay);
-  if(Math.abs(e.clientX-drag.startX)>4)drag.moved=true;
+  const dDays=Math.round((clientX-drag.startX)/drag.pxPerDay);
+  if(Math.abs(clientX-drag.startX)>4)drag.moved=true;
   const t=drag.task;
   if(drag.type==="move"){let ns=Math.max(0,Math.min(TOTAL-t.dur,drag.origStart+dDays));t.start=ns;t._bar.style.left=(ns/TOTAL*100)+"%";}
   else{let nd=Math.max(1,Math.min(TOTAL-t.start,drag.origDur+dDays));t.dur=nd;t._bar.style.width=(nd/TOTAL*100)+"%";t._label.textContent=nd+"d";}
-  if(drag.moved)showTip(t,e);
-});
-window.addEventListener("mouseup",()=>{
-  if(!drag)return;
-  const d=drag;d.task._bar.classList.remove("dragging");document.body.style.userSelect="";tip.style.opacity="0";drag=null;
-  if(d.type==="move"&&!d.moved){openEditor(d.task);}   // a click, not a drag
-  else{persist();}
-});
+}
+function endDrag(){
+  if(!drag)return null;
+  const d=drag;d.task._bar.classList.remove("dragging");document.body.style.userSelect="";tip.style.opacity="0";drag=null;return d;
+}
+// mouse
+window.addEventListener("mousemove",e=>{if(!drag)return;moveDrag(e.clientX);if(drag.moved)showTip(drag.task,e);});
+window.addEventListener("mouseup",()=>{const d=endDrag();if(!d)return;if(d.type==="move"&&!d.moved){openEditor(d.task);}else{persist();}});
+// touch
+window.addEventListener("touchmove",e=>{
+  if(!drag&&touchPending){
+    const t=e.touches[0];
+    const dx=t.clientX-touchPending.x, dy=t.clientY-touchPending.y;
+    if(touchPending.force||Math.abs(dx)>Math.abs(dy)){beginDrag(touchPending.x,touchPending.task,touchPending.type);touchPending=null;}
+    else if(Math.abs(dy)>6){touchPending=null;return;}   // vertical → let the page scroll
+    else return;
+  }
+  if(drag){e.preventDefault();const t=e.touches[0];moveDrag(t.clientX);if(drag.moved)showTip(drag.task,{clientX:t.clientX,clientY:t.clientY});}
+},{passive:false});
+window.addEventListener("touchend",e=>{
+  if(drag){const d=endDrag();if(d){if(d.type==="move"&&!d.moved){openEditor(d.task);}else{persist();}}touchPending=null;e.preventDefault();return;}
+  if(touchPending){const tp=touchPending;touchPending=null;if(tp.type==="move"){openEditor(tp.task);e.preventDefault();}}
+},{passive:false});
 
 // ---- modal editor ----
 const modal=document.getElementById("modal");
