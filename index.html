@@ -358,7 +358,8 @@ let TASKS=[];
 function buildDefault(){nextId=0;TASKS=RAW.map(t=>({id:nextId++,name:t[0],phase:t[1],start:t[2],dur:t[3],status:initStatus(t)}));}
 function serialize(){return TASKS.map(t=>({id:t.id,name:t.name,phase:t.phase,start:t.start,dur:t.dur,status:t.status}));}
 function loadSaved(){try{const raw=localStorage.getItem(LS_KEY);if(!raw)return null;const arr=JSON.parse(raw);return Array.isArray(arr)&&arr.length?arr:null;}catch(e){return null;}}
-const API_URL="/api/schedule";
+const API_CANDIDATES=["/.netlify/functions/schedule","/api/schedule"];
+let API_URL=API_CANDIDATES[0];
 let pushTimer=null;
 function normalizeTask(t){return {id:t.id,name:t.name||"Untitled",phase:t.phase||"procurement",start:+t.start||0,dur:Math.max(1,+t.dur||1),status:["done","prog","todo"].includes(t.status)?t.status:"todo"};}
 function persist(){try{localStorage.setItem(LS_KEY,JSON.stringify(serialize()));}catch(e){}schedulePush();}
@@ -368,17 +369,22 @@ async function pushToServer(){
   catch(e){setSaveState("⚠ Offline — saved on this device","warn");}
 }
 async function loadFromServer(){
-  try{
-    const res=await fetch(API_URL,{cache:"no-store"});if(!res.ok)throw 0;
-    const data=await res.json();
-    if(Array.isArray(data)&&data.length){
-      nextId=0;TASKS=data.map(t=>{nextId=Math.max(nextId,(t.id||0)+1);return normalizeTask(t);});
-      renderLanes();recompute();
-      try{localStorage.setItem(LS_KEY,JSON.stringify(serialize()));}catch(e){}
-      return "loaded";
-    }
-    return "empty";
-  }catch(e){return "offline";}
+  for(const url of API_CANDIDATES){
+    try{
+      const res=await fetch(url,{cache:"no-store"});
+      if(!res.ok)continue;
+      API_URL=url;            // remember whichever endpoint answered
+      const data=await res.json();
+      if(Array.isArray(data)&&data.length){
+        nextId=0;TASKS=data.map(t=>{nextId=Math.max(nextId,(t.id||0)+1);return normalizeTask(t);});
+        renderLanes();recompute();
+        try{localStorage.setItem(LS_KEY,JSON.stringify(serialize()));}catch(e){}
+        return "loaded";
+      }
+      return "empty";
+    }catch(e){/* try next candidate */}
+  }
+  return "offline";
 }
 (function initData(){
   const saved=loadSaved();
