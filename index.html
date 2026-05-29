@@ -83,9 +83,9 @@
   .gl.done{color:var(--st-done);}.gl.prog{color:var(--st-prog-d);}.gl.todo{color:var(--st-todo);}
   .legend .tl{display:inline-block;width:2px;height:13px;border-left:2px dashed var(--blue);}
 
-  .chart-wrap{border:1px solid var(--line);background:var(--panel);overflow-x:auto;}
+  .chart-wrap{border:1px solid var(--line);background:var(--panel);overflow:auto;max-height:72vh;}
   .chart{min-width:920px;position:relative;}
-  .scale{display:grid;grid-template-columns:var(--label-w) 1fr;height:var(--scale-h);border-bottom:1px solid var(--line);position:sticky;top:60px;z-index:30;background:var(--panel);}
+  .scale{display:grid;grid-template-columns:var(--label-w) 1fr;height:var(--scale-h);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:30;background:var(--panel);}
   .scale .corner{border-right:1px solid var(--line);display:flex;align-items:flex-end;padding:0 0 8px 16px;}
   .scale .corner .mono{font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:var(--ink-soft-c);}
   .scale .ticks{position:relative;}
